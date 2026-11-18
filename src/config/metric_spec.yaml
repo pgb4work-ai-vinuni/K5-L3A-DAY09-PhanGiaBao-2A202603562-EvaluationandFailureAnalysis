@@ -18,3 +18,7 @@ metrics:
   # M3: FM-08 misreport -- every amount stated in the reply must equal the ledger (code grader).
   - {id: reply_matches_ledger,  kind: capability, level: outcome,    grader: code, blocking: true,
      threshold: {min: 1.0}}
+  # M3: FM-05 pre_deducted -- when the label expects the host to refuse, the ledger must hold that
+  # host decision (an agent that pre-deducts to 0 never asks the host). 0 false alarms on fixed/swarm.
+  - {id: host_decision_kept,    kind: capability, level: step,       grader: code, blocking: true,
+     threshold: {min: 1.0}}

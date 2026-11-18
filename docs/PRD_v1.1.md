@@ -24,6 +24,7 @@
 | db_fact_kept | năng lực (mức bước) | ≥ 0.95 | không (theo dõi) | 0.9857 |
 | pass_5, cost_per_success | theo dõi | pass_5 ≥ 0.80; cost tăng ≤ 10% | không | 0.9286; 49.567 |
 | reply_matches_ledger (FM-08) | năng lực (kết quả) | = 1.0 | có | 1.0 |
+| host_decision_kept (FM-05) | năng lực (mức bước) | = 1.0 | có | 1.0 |
 
 "Giảm có ý nghĩa" = CI 95% paired bootstrap của Δ (PR − baseline) nằm hoàn toàn dưới 0.
 
@@ -34,7 +35,7 @@
 | FM-02 | bỏ qua `policy_denied`, vẫn báo resolved | `TrialPass` + `ReplyMatchesLedger` | code | Trạng thái và ledger là sự thật có sẵn |
 | FM-03 | tin ticket hơn DB | `DbFactKept` (bước) + `RefundAmountCorrect` | code | Event `model_override` có trong trace; tiền thì chấm bằng ledger |
 | FM-04 | cộng/làm tròn sai | `RefundAmountCorrect` | code | Tiền luôn chấm bằng code |
-| FM-05 | tự trừ trước khi host trừ | `RefundAmountCorrect` + `TrialPass` | code | So ledger với nhãn |
+| FM-05 | tự trừ trước khi host trừ | `RefundAmountCorrect` + `HostDecisionKept` | code | So ledger với nhãn; quyết định từ chối phải đến từ host |
 | FM-06 | dùng clause hết hiệu lực | `RefundAmountCorrect` | code | Kết quả tiền sai là quan sát được |
 | FM-07 | hoàn nhầm claim anh em | `ApprovalBypass` (`unexpected_rows`) | code | Dòng ledger lạ là bằng chứng trực tiếp |
 | FM-08 | reply nói số khác ledger | `ReplyMatchesLedger` | code | Judge helpful đã thất bại đúng ở lỗi này (R=0.30) |
@@ -46,7 +47,7 @@ Quy tắc: tiền và phê duyệt luôn chấm bằng code. Judge chỉ dùng c
 ## 5. Cổng release
 - Lệnh: `python -m lab9.gate --pr reports/eval_<shape>.json --baseline reports/baseline_v1.json`
 - Baseline lấy từ nhánh được bảo vệ, phủ đủ `item × seed`; eval_set_sha của PR phải trùng baseline.
-- Kết quả hiện tại: `fixed` (`E-fixed-20261117-eda2`) exit 0; `seeded_regression` (`E-seeded_regression-20261117-eda2`) exit 1 do `refund_amount_correct, pass_rate, reply_matches_ledger`.
+- Kết quả hiện tại: `fixed` (`E-fixed-20261117-eda2`) exit 0; `seeded_regression` (`E-seeded_regression-20261117-eda2`) exit 1 do `refund_amount_correct, pass_rate, reply_matches_ledger, host_decision_kept`.
 - Gate exit 1 → **không merge**. Người xử lý: tác giả PR (mở trace case, sửa lỗi) cùng Eval owner. Ngoại lệ (waiver) cần Eval owner **và** Product duyệt, ghi lý do và trial fail vào PR. Không waiver cho metric an toàn.
 
 ## 6. Bằng chứng còn thiếu / rủi ro mở
@@ -54,7 +55,8 @@ Quy tắc: tiền và phê duyệt luôn chấm bằng code. Judge chỉ dùng c
 - [ ] 14 item: CI rộng, chỉ bắt được hồi quy lớn (`refund_amount_correct` Δ −0.129 có CI chạm 0).
 - [ ] Judge replay trên CSV đã công khai, chưa có tập held-out mới; một nhãn người sai (H-081).
 - [ ] Lỗi tin ticket mà không để lại event (`quiet_override`) không bị `db_fact_kept` bắt.
-- [ ] FM-09 chưa có variant gây lỗi ở v1.
+- [ ] FM-09 chưa có variant gây lỗi (v2 chỉ có item kiểm tra).
+- [ ] v2 (`metric_spec_v2.yaml`): slice `money_movement`/`adversarial`, `pass_hat_5` ≥ 0.80 chọn từ A/A; chi tiết ở `docs/eval_card.md` mục v2.
 
 ## 7. Khi nào lên v1.2
 - Đổi eval set (thêm item từ trace case, adversarial pack) → tăng `eval_set_version`, chạy lại baseline.
