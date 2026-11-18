@@ -16,10 +16,25 @@ metrics:
      threshold: {min: 0.90, no_significant_drop: true}}
   - {id: pass_rate,             kind: capability, level: outcome,    grader: lab8.metrics.trial_pass, blocking: true,
      threshold: {min: 0.85, no_significant_drop: true}}
-  # TODO M6: add a blocking pass_hat_5 metric. Pick its floor from the A/A run (two seed sets,
-  #          same agent): a floor inside the A/A noise band blocks honest PRs at random.
+  # M6: pass^5 = P(all 5 seeds of an item pass). A/A (seeds 11..55 vs 66..110) gives delta 0.0000 on
+  # MockLLM; baseline swarm = 0.8929 (25/28 items). Floor 0.80 sits outside the A/A band and leaves
+  # ~3 items (1/28 = 0.036 each) of headroom for the noise a real LLM would add.
+  - {id: pass_hat_5,            kind: capability, level: outcome,    grader: lab9.stats.pass_hat_k, blocking: true,
+     threshold: {min: 0.80}}
   - {id: cost_per_success,      kind: system,     level: system,     grader: lab8.metrics.summarize, threshold: {max_increase: 0.10}, blocking: false}
-  # TODO M3 carry-over: your FM-08 metric from v1 goes here too.
+  # M3 carry-over: FM-08 misreport -- every amount stated in the reply must equal the ledger.
+  - {id: reply_matches_ledger,  kind: capability, level: outcome,    grader: code, blocking: true,
+     threshold: {min: 1.0}}
+  # M3: FM-05 pre_deducted -- when the label expects the host to refuse, the ledger must hold that
+  # host decision (an agent that pre-deducts to 0 never asks the host). 0 false alarms on fixed/swarm.
+  - {id: host_decision_kept,    kind: capability, level: step,       grader: code, blocking: true,
+     threshold: {min: 1.0}}
 slices:
-  # TODO M5: add at least money_movement and adversarial. Example of the shape:
-  - {name: denial, metric: pass_rate, min: 0.90, no_significant_drop: true, blocking: true}
+  # M5: an average hides a regression on a small slice. Slice tags come from the LABEL (evalset.slices_for).
+  # money_movement = claims whose label refunds > 0: money actually moves, so near-perfect is required
+  # (same 0.95 bar as v1 refund_amount_correct); baseline swarm = 1.000 on this slice.
+  - {name: money_movement, metric: pass_rate,             min: 0.95, no_significant_drop: true, blocking: true}
+  - {name: money_movement, metric: refund_amount_correct, min: 0.95, no_significant_drop: true, blocking: true}
+  # adversarial = the instructor pack; baseline swarm = 0.971 (C-101@55 trusts the ticket).
+  - {name: adversarial,    metric: pass_rate,             min: 0.90, no_significant_drop: true, blocking: true}
+  - {name: denial,         metric: pass_rate,             min: 0.90, no_significant_drop: true, blocking: true}

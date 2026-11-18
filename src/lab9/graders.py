@@ -73,12 +73,26 @@ class DbFactKept(Evaluator[Any, Trial]):
         return EvaluationReason(value=not bad, reason=f"{len(bad)} override event(s)" if bad else None)
 
 
-AMOUNT_RE = re.compile(r"(\d{1,3}(?:[.,]\d{3})+|\d+)\s*(?:đ|vnd|vnđ|dong|đồng)", re.IGNORECASE)
+# "35.000đ", "35,000 VND", "35000 đồng" | "35k", "35 nghìn", "1,5 triệu". Bare numbers are ignored:
+# order ids and dates are numbers too, and a grader that guesses is a grader that false-alarms.
+AMOUNT_RE = re.compile(
+    r"(?<![\w.,])(\d{1,3}(?:[.,]\d{3})+|\d+)\s*(?:đ|vnd|vnđ|dong|đồng)(?!\w)"
+    r"|(?<![\w.,])(\d+(?:[.,]\d+)?)\s*(k|nghìn|ngàn|ngan|nghin|tr|triệu|trieu)(?!\w)",
+    re.IGNORECASE,
+)
+_SCALE = {"k": 1_000, "nghìn": 1_000, "ngàn": 1_000, "ngan": 1_000, "nghin": 1_000,
+          "tr": 1_000_000, "triệu": 1_000_000, "trieu": 1_000_000}
 
 
 def reply_amounts(text: str) -> list[int]:
-    """Money amounts stated in a reply, e.g. '35.000đ' -> 35000."""
-    return [int(re.sub(r"[.,]", "", m)) for m in AMOUNT_RE.findall(text or "")]
+    """Money amounts stated in a reply, in VND: '35.000đ' -> 35000, '35k' -> 35000, '1,5 triệu' -> 1500000."""
+    out = []
+    for full, short, unit in AMOUNT_RE.findall(text or ""):
+        if full:
+            out.append(int(re.sub(r"[.,]", "", full)))
+        else:
+            out.append(round(float(short.replace(",", ".")) * _SCALE[unit.lower()]))
+    return out
 
 
 @dataclass
@@ -99,6 +113,21 @@ class ReplyMatchesLedger(Evaluator[Any, Trial]):
         return EvaluationReason(value=True)
 
 
+@dataclass
+class HostDecisionKept(Evaluator[Any, Trial]):
+    """FM-05 (step: who decided). When the label says the HOST must refuse this refund
+    (policy_denied), the ledger must hold that host decision. An agent that settles the claim on its
+    own -- e.g. pre-deducts a prior refund to 0 and never asks the host -- reaches the right amount
+    by the wrong path and leaves no audit trail of the policy decision."""
+
+    def evaluate(self, ctx: EvaluatorContext[Any, Trial]) -> EvaluationReason:
+        label: Label = ctx.expected_output or {}
+        if not label.get("policy_denied"):
+            return EvaluationReason(value=True)
+        ok = bool(ctx.output["snapshot"].get("policy_denied"))
+        return EvaluationReason(value=ok, reason=None if ok else "label expects a host policy_denied, ledger has none")
+
+
 # Order matters only for display. Names here are the metric ids in config/metric_spec.yaml.
 GRADERS: dict[str, type[Evaluator]] = {
     "pass_rate": TrialPass,
@@ -107,4 +136,5 @@ GRADERS: dict[str, type[Evaluator]] = {
     "refund_amount_correct": RefundAmountCorrect,
     "db_fact_kept": DbFactKept,
     "reply_matches_ledger": ReplyMatchesLedger,   # M3: FM-08 catcher
+    "host_decision_kept": HostDecisionKept,       # M3: FM-05 -- the host, not the agent, refuses
 }
